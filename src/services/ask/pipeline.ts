@@ -3,7 +3,7 @@ import { generateAnswer, processQuestion } from "@/services/ai";
 import { AppError } from "@/services/ai/errors";
 import { buildContext, type BuiltContext } from "@/services/context";
 import {
-  searchKnowledge,
+  searchHybrid,
   type KnowledgeSearchResult,
   type SearchKnowledgeOptions,
 } from "@/services/search";
@@ -115,7 +115,7 @@ export async function askQuestion(
   const runGetCachedAsk = deps.getCachedAsk ?? getCachedAsk;
   const runSetCachedAsk = deps.setCachedAsk ?? setCachedAsk;
   const runProcessQuestion = deps.processQuestion ?? processQuestion;
-  const runSearchKnowledge = deps.searchKnowledge ?? searchKnowledge;
+  const runSearchKnowledge = deps.searchKnowledge ?? searchHybrid;
   const runBuildContext = deps.buildContext ?? buildContext;
   const runGenerateAnswer = deps.generateAnswer ?? generateAnswer;
 

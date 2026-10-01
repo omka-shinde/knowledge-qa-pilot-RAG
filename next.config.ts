@@ -10,6 +10,8 @@ import path from "node:path";
  */
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Keep PDF/Word parsers outside the Turbopack bundle so pdf.js can load its worker.
+  serverExternalPackages: ["pdf-parse", "mammoth", "word-extractor"],
   turbopack: {
     root: path.resolve(process.cwd()),
   },

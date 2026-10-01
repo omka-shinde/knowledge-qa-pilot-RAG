@@ -34,10 +34,21 @@ function normalizeWhitespace(text: string): string {
 function formatExcerptBlock(hit: KnowledgeSearchHit, index: number): string {
   const sourceParts = [hit.sourceDocument];
   if (hit.sourcePage !== null) {
-    sourceParts.push(`p.${hit.sourcePage}`);
+    sourceParts.push(
+      hit.question.startsWith("Excerpt from ")
+        ? `chunk ${hit.sourcePage}`
+        : `p.${hit.sourcePage}`,
+    );
   }
   if (hit.category) {
     sourceParts.push(hit.category);
+  }
+
+  if (hit.question.startsWith("Excerpt from ")) {
+    return [
+      `[${index}] Content: ${normalizeWhitespace(hit.answer)}`,
+      `Source: ${sourceParts.join(" | ")}`,
+    ].join("\n");
   }
 
   return [
@@ -61,8 +72,10 @@ function prepareHits(
   for (const hit of ordered) {
     const question = normalizeWhitespace(hit.question);
     const answer = normalizeWhitespace(hit.answer);
+    const isChunkExcerpt = question.startsWith("Excerpt from ");
 
-    if (!question || !answer) {
+    // FAQ rows need both Q+A; uploaded chunks only need content (answer).
+    if (!answer || (!isChunkExcerpt && !question)) {
       skippedEmptyOrLowRank += 1;
       continue;
     }

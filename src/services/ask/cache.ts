@@ -147,3 +147,19 @@ export async function setCachedAsk(
     });
   }
 }
+
+/**
+ * Wipe ask_cache after the knowledge corpus changes (upload / delete).
+ */
+export async function clearAskCache(): Promise<void> {
+  try {
+    const db = getDb();
+    await db.delete(askCache);
+    logCacheEvent("store", { cleared: true });
+  } catch (error) {
+    logCacheEvent("error", {
+      operation: "clear",
+      message: error instanceof Error ? error.message : "unknown",
+    });
+  }
+}

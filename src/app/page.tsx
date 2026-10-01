@@ -1,11 +1,5 @@
-import { ChatHeader } from "@/components/chat/ChatHeader";
-import { ChatPanel } from "@/components/chat/ChatPanel";
+import { AppShell } from "@/components/AppShell";
 
 export default function Home() {
-  return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
-      <ChatHeader />
-      <ChatPanel />
-    </div>
-  );
+  return <AppShell />;
 }

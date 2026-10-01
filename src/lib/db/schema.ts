@@ -7,8 +7,40 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+/**
+ * pgvector column stored as `vector(N)`.
+ * Driver round-trips as the Postgres vector literal string.
+ */
+export const vector = customType<{
+  data: number[];
+  driverData: string;
+  config: { dimensions: number };
+}>({
+  dataType(config) {
+    return `vector(${config?.dimensions ?? 1536})`;
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value: unknown): number[] {
+    if (Array.isArray(value)) {
+      return value.map(Number);
+    }
+    const raw = String(value);
+    const trimmed = raw.startsWith("[") ? raw.slice(1, -1) : raw;
+    if (!trimmed) {
+      return [];
+    }
+    return trimmed.split(",").map((part) => Number(part.trim()));
+  },
+});
+
+/** OpenAI text-embedding-3-small output size. */
+export const EMBEDDING_DIMENSIONS = 1536;
 
 /**
  * Knowledge-base entries extracted from FAQ PDFs.
@@ -96,3 +128,71 @@ export const askCache = pgTable(
 
 export type AskCacheEntry = typeof askCache.$inferSelect;
 export type NewAskCacheEntry = typeof askCache.$inferInsert;
+
+/** Upload / processing lifecycle for user-uploaded documents. */
+export type DocumentStatus =
+  | "uploaded"
+  | "extracting"
+  | "chunking"
+  | "embedding"
+  | "ready"
+  | "failed";
+
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    fileSize: integer("file_size").notNull(),
+    storagePath: text("storage_path").notNull(),
+    status: text("status").$type<DocumentStatus>().notNull().default("uploaded"),
+    statusMessage: text("status_message"),
+    error: text("error"),
+    chunkCount: integer("chunk_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("documents_status_idx").on(table.status),
+    index("documents_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export type Document = typeof documents.$inferSelect;
+export type NewDocument = typeof documents.$inferInsert;
+
+/**
+ * Text chunks + embeddings for uploaded documents.
+ * Embedding is OpenAI text-embedding-3-small (1536 dims).
+ */
+export const documentChunks = pgTable(
+  "document_chunks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull(),
+    content: text("content").notNull(),
+    tokenEstimate: integer("token_estimate").notNull().default(0),
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("document_chunks_document_id_idx").on(table.documentId),
+    uniqueIndex("document_chunks_document_id_chunk_index_uidx").on(
+      table.documentId,
+      table.chunkIndex,
+    ),
+  ],
+);
+
+export type DocumentChunk = typeof documentChunks.$inferSelect;
+export type NewDocumentChunk = typeof documentChunks.$inferInsert;

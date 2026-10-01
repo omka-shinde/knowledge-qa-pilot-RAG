@@ -52,6 +52,10 @@ export function getSonnetModel(): string {
   return readEnv("ANTHROPIC_SONNET_MODEL") ?? DEFAULT_SONNET_MODEL;
 }
 
+export function getOpenAIApiKeyOptional(): string | undefined {
+  return readEnv("OPENAI_API_KEY");
+}
+
 export const DEFAULT_ANTHROPIC_HAIKU_MODEL = DEFAULT_HAIKU_MODEL;
 export const DEFAULT_ANTHROPIC_SONNET_MODEL = DEFAULT_SONNET_MODEL;
 
@@ -67,5 +71,8 @@ export const env = {
   },
   get sonnetModel() {
     return getSonnetModel();
+  },
+  get openAIApiKey() {
+    return getOpenAIApiKeyOptional();
   },
 };

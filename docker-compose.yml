@@ -1,18 +1,18 @@
 services:
   postgres:
-    image: postgres:16-alpine
-    container_name: qa-pilot-postgres
+    image: pgvector/pgvector:pg16
+    container_name: qa-pilot-rag-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: qa_pilot
-      POSTGRES_PASSWORD: qa_pilot
-      POSTGRES_DB: qa_pilot
+      POSTGRES_USER: qa_pilot_rag
+      POSTGRES_PASSWORD: qa_pilot_rag
+      POSTGRES_DB: qa_pilot_rag
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - qa-pilot-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U qa_pilot -d qa_pilot"]
+      test: ["CMD-SHELL", "pg_isready -U qa_pilot_rag -d qa_pilot_rag"]
       interval: 5s
       timeout: 5s
       retries: 10

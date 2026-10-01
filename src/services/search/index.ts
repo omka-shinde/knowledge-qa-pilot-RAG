@@ -1,5 +1,5 @@
 /**
- * PostgreSQL knowledge-base search (Phase 4).
+ * PostgreSQL knowledge-base search (Phase 4) + vector RAG.
  */
 
 export {
@@ -8,6 +8,11 @@ export {
   type KnowledgeSearchResult,
   type SearchKnowledgeOptions,
 } from "@/services/search/postgres";
+export {
+  searchDocumentChunks,
+  searchHybrid,
+  type SearchChunksOptions,
+} from "@/services/search/vector";
 export {
   DEFAULT_SEARCH_LIMIT,
   MAX_SEARCH_LIMIT,

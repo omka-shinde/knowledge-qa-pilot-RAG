@@ -22,6 +22,20 @@
       "when": 1789900000000,
       "tag": "0002_documents_pgvector",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789910000000,
+      "tag": "0003_users_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789920000000,
+      "tag": "0004_chat_threads",
+      "breakpoints": true
     }
   ]
 }

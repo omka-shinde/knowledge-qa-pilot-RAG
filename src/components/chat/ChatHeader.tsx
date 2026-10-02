@@ -1,25 +1,39 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { DarkModeToggle } from "@/components/chat/DarkModeToggle";
+import { ProfileMenu } from "@/components/auth/ProfileMenu";
 
 type ChatHeaderProps = {
   activeView?: "chat" | "documents";
   onOpenDocuments?: () => void;
   onOpenChat?: () => void;
+  userName?: string | null;
+  userEmail?: string | null;
 };
 
 export function ChatHeader({
   activeView = "chat",
   onOpenDocuments,
   onOpenChat,
+  userName,
+  userEmail,
 }: ChatHeaderProps) {
+  const router = useRouter();
+
   return (
-    <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white/80 px-4 py-3 backdrop-blur-sm dark:border-zinc-800 dark:bg-[#1a1a1a]/80 sm:px-6">
+    <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 bg-white/80 px-4 py-3 backdrop-blur-sm dark:border-zinc-800 dark:bg-[#1a1a1a]/80 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
-          onClick={onOpenChat}
-          className="flex min-w-0 items-center gap-3 text-left"
+          onClick={() => {
+            if (onOpenChat) {
+              onOpenChat();
+            } else {
+              router.push("/");
+            }
+          }}
+          className="flex min-w-0 items-center gap-2 text-left"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-600 text-white shadow-sm">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -36,7 +50,7 @@ export function ChatHeader({
               Knowledge Q&amp;A Pilot
             </h1>
             <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-              Answers grounded in the knowledge base
+              Answers grounded in your documents
             </p>
           </div>
         </button>
@@ -46,7 +60,13 @@ export function ChatHeader({
         <nav className="flex items-center rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
           <button
             type="button"
-            onClick={onOpenChat}
+            onClick={() => {
+              if (onOpenChat) {
+                onOpenChat();
+              } else {
+                router.push("/");
+              }
+            }}
             className={[
               "rounded-md px-2.5 py-1 text-xs font-medium transition",
               activeView === "chat"
@@ -58,7 +78,13 @@ export function ChatHeader({
           </button>
           <button
             type="button"
-            onClick={onOpenDocuments}
+            onClick={() => {
+              if (onOpenDocuments) {
+                onOpenDocuments();
+              } else {
+                router.push("/?view=documents");
+              }
+            }}
             className={[
               "rounded-md px-2.5 py-1 text-xs font-medium transition",
               activeView === "documents"
@@ -70,6 +96,7 @@ export function ChatHeader({
           </button>
         </nav>
         <DarkModeToggle />
+        <ProfileMenu userName={userName} userEmail={userEmail} />
       </div>
     </header>
   );

@@ -1,10 +1,10 @@
 /**
- * Document upload / list / delete service helpers.
+ * Document upload / list / delete service helpers (per-user).
  */
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { documents, type Document } from "@/lib/db/schema";
 import { clearAskCache } from "@/services/ask/cache";
@@ -56,28 +56,33 @@ export function getMaxUploadBytes(): number {
   return MAX_FILE_BYTES;
 }
 
-export async function listDocuments(): Promise<DocumentListItem[]> {
+export async function listDocuments(
+  userId: string,
+): Promise<DocumentListItem[]> {
   const db = getDb();
   const rows = await db
     .select()
     .from(documents)
+    .where(eq(documents.userId, userId))
     .orderBy(desc(documents.createdAt));
   return rows.map(toListItem);
 }
 
 export async function getDocument(
   id: string,
+  userId: string,
 ): Promise<DocumentListItem | null> {
   const db = getDb();
   const [row] = await db
     .select()
     .from(documents)
-    .where(eq(documents.id, id))
+    .where(and(eq(documents.id, id), eq(documents.userId, userId)))
     .limit(1);
   return row ? toListItem(row) : null;
 }
 
 export type CreateDocumentInput = {
+  userId: string;
   filename: string;
   mimeType: string;
   buffer: Buffer;
@@ -121,6 +126,7 @@ export async function createDocumentFromUpload(
   const [created] = await db
     .insert(documents)
     .values({
+      userId: input.userId,
       filename,
       mimeType: input.mimeType || "application/octet-stream",
       fileSize: input.buffer.byteLength,
@@ -152,12 +158,15 @@ export async function createDocumentFromUpload(
 /**
  * Permanently delete a document, its chunks (CASCADE), and the stored file.
  */
-export async function deleteDocument(id: string): Promise<boolean> {
+export async function deleteDocument(
+  id: string,
+  userId: string,
+): Promise<boolean> {
   const db = getDb();
   const [existing] = await db
     .select()
     .from(documents)
-    .where(eq(documents.id, id))
+    .where(and(eq(documents.id, id), eq(documents.userId, userId)))
     .limit(1);
 
   if (!existing) {
@@ -174,7 +183,7 @@ export async function deleteDocument(id: string): Promise<boolean> {
     }
   }
 
-  await clearAskCache();
+  await clearAskCache(userId);
   return true;
 }
 
@@ -183,12 +192,13 @@ export async function deleteDocument(id: string): Promise<boolean> {
  */
 export async function queueDocumentReprocess(
   id: string,
+  userId: string,
 ): Promise<DocumentListItem | null> {
   const db = getDb();
   const [existing] = await db
     .select()
     .from(documents)
-    .where(eq(documents.id, id))
+    .where(and(eq(documents.id, id), eq(documents.userId, userId)))
     .limit(1);
 
   if (!existing) {

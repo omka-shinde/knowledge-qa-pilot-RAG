@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { askCache, type AskCacheSource } from "@/lib/db/schema";
 import { normalizeQuestionKey } from "@/services/ingestion/normalizer";
@@ -34,14 +34,14 @@ export function toCacheKey(question: string): string {
 }
 
 /**
- * Look up a previously answered question by normalized key.
- * Returns null on miss or if the cache is unavailable.
+ * Look up a previously answered question by user + normalized key.
  */
 export async function getCachedAsk(
   question: string,
+  userId?: string | null,
 ): Promise<CachedAskPayload | null> {
   const questionNormalized = toCacheKey(question);
-  if (!questionNormalized) {
+  if (!questionNormalized || !userId) {
     return null;
   }
 
@@ -57,12 +57,17 @@ export async function getCachedAsk(
         sources: askCache.sources,
       })
       .from(askCache)
-      .where(eq(askCache.questionNormalized, questionNormalized))
+      .where(
+        and(
+          eq(askCache.userId, userId),
+          eq(askCache.questionNormalized, questionNormalized),
+        ),
+      )
       .limit(1);
 
     const row = rows[0];
     if (!row) {
-      logCacheEvent("miss", { questionNormalized });
+      logCacheEvent("miss", { questionNormalized, userId });
       return null;
     }
 
@@ -72,9 +77,14 @@ export async function getCachedAsk(
         hitCount: sql`${askCache.hitCount} + 1`,
         lastHitAt: new Date(),
       })
-      .where(eq(askCache.questionNormalized, questionNormalized));
+      .where(
+        and(
+          eq(askCache.userId, userId),
+          eq(askCache.questionNormalized, questionNormalized),
+        ),
+      );
 
-    logCacheEvent("hit", { questionNormalized });
+    logCacheEvent("hit", { questionNormalized, userId });
 
     return {
       answer: row.answer,
@@ -94,15 +104,15 @@ export async function getCachedAsk(
 }
 
 /**
- * Persist a successful ask response for future identical questions.
- * Best-effort: failures are logged and swallowed.
+ * Persist a successful ask response for future identical questions (per user).
  */
 export async function setCachedAsk(
   question: string,
   result: CachedAskPayload,
+  userId?: string | null,
 ): Promise<void> {
   const questionNormalized = toCacheKey(question);
-  if (!questionNormalized) {
+  if (!questionNormalized || !userId) {
     return;
   }
 
@@ -113,6 +123,7 @@ export async function setCachedAsk(
     await db
       .insert(askCache)
       .values({
+        userId,
         questionNormalized,
         question,
         answer: result.answer,
@@ -126,7 +137,7 @@ export async function setCachedAsk(
         updatedAt: now,
       })
       .onConflictDoUpdate({
-        target: askCache.questionNormalized,
+        target: [askCache.userId, askCache.questionNormalized],
         set: {
           question,
           answer: result.answer,
@@ -139,7 +150,7 @@ export async function setCachedAsk(
         },
       });
 
-    logCacheEvent("store", { questionNormalized });
+    logCacheEvent("store", { questionNormalized, userId });
   } catch (error) {
     logCacheEvent("error", {
       operation: "set",
@@ -149,11 +160,17 @@ export async function setCachedAsk(
 }
 
 /**
- * Wipe ask_cache after the knowledge corpus changes (upload / delete).
+ * Wipe ask_cache for a user after their corpus changes (upload / delete).
+ * If userId omitted, clears the entire cache (legacy/admin).
  */
-export async function clearAskCache(): Promise<void> {
+export async function clearAskCache(userId?: string): Promise<void> {
   try {
     const db = getDb();
+    if (userId) {
+      await db.delete(askCache).where(eq(askCache.userId, userId));
+      logCacheEvent("store", { cleared: true, userId });
+      return;
+    }
     await db.delete(askCache);
     logCacheEvent("store", { cleared: true });
   } catch (error) {

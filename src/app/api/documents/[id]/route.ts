@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { AuthError, requireSessionUser } from "@/lib/auth";
 import {
   deleteDocument,
   getDocument,
@@ -13,17 +14,21 @@ type RouteContext = {
 };
 
 /**
- * GET /api/documents/[id] — single document status (for polling).
+ * GET /api/documents/[id] — single document status (owner only).
  */
 export async function GET(_request: Request, context: RouteContext) {
   try {
+    const user = await requireSessionUser();
     const { id } = await context.params;
-    const document = await getDocument(id);
+    const document = await getDocument(id, user.id);
     if (!document) {
       return Response.json({ error: "Document not found." }, { status: 404 });
     }
     return Response.json({ document });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     const message =
       error instanceof Error ? error.message : "Failed to load document.";
     return Response.json({ error: message }, { status: 500 });
@@ -31,12 +36,13 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 /**
- * POST /api/documents/[id] — retry processing for a failed/uploaded document.
+ * POST /api/documents/[id] — retry processing (owner only).
  */
 export async function POST(_request: Request, context: RouteContext) {
   try {
+    const user = await requireSessionUser();
     const { id } = await context.params;
-    const document = await getDocument(id);
+    const document = await getDocument(id, user.id);
     if (!document) {
       return Response.json({ error: "Document not found." }, { status: 404 });
     }
@@ -56,13 +62,16 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    const queued = await queueDocumentReprocess(id);
+    const queued = await queueDocumentReprocess(id, user.id);
     after(async () => {
       await processDocument(id);
     });
 
     return Response.json({ document: queued });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     const message =
       error instanceof Error ? error.message : "Failed to retry processing.";
     return Response.json({ error: message }, { status: 500 });
@@ -70,17 +79,21 @@ export async function POST(_request: Request, context: RouteContext) {
 }
 
 /**
- * DELETE /api/documents/[id] — permanently remove document + chunks.
+ * DELETE /api/documents/[id] — permanently remove document (owner only).
  */
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
+    const user = await requireSessionUser();
     const { id } = await context.params;
-    const deleted = await deleteDocument(id);
+    const deleted = await deleteDocument(id, user.id);
     if (!deleted) {
       return Response.json({ error: "Document not found." }, { status: 404 });
     }
     return Response.json({ ok: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     const message =
       error instanceof Error ? error.message : "Failed to delete document.";
     return Response.json({ error: message }, { status: 500 });

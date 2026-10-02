@@ -21,12 +21,13 @@ export type { AnswerGenerationResult };
 const SONNET_SYSTEM_PROMPT = `You are an answer-generation component for a knowledge-base Q&A system.
 
 Your job:
-1. Read the user's question.
+1. Read the user's question (and any prior conversation turns if provided).
 2. Read the provided knowledge-base context excerpts.
-3. Write a clear, natural-language answer grounded only in that context.
+3. Write a clear, natural-language answer grounded only in that context, while respecting conversation continuity.
 
 Hard rules:
-- Use ONLY information present in the provided context.
+- Use ONLY information present in the provided context for factual claims.
+- Use prior conversation only to resolve references (e.g. "that", "it", follow-ups), not as a source of new facts.
 - Do NOT invent facts, numbers, product policies, or advice that is not in the context.
 - If the context is missing or insufficient, say clearly that the knowledge base does not contain enough information to answer.
 - Prefer concise, direct answers.
@@ -51,6 +52,7 @@ export type GenerateAnswerInput = {
   contextText?: unknown;
   intent?: unknown;
   searchQuery?: unknown;
+  conversationHistory?: unknown;
 };
 
 export type GenerateAnswerOptions = {
@@ -67,8 +69,20 @@ function buildUserPrompt(input: {
   contextText: string;
   intent: string | null;
   searchQuery: string | null;
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>;
 }): string {
-  const lines = [`User question: ${input.question}`];
+  const lines: string[] = [];
+
+  if (input.conversationHistory.length > 0) {
+    lines.push("Prior conversation:");
+    for (const turn of input.conversationHistory) {
+      const label = turn.role === "user" ? "User" : "Assistant";
+      lines.push(`${label}: ${turn.content}`);
+    }
+    lines.push("");
+  }
+
+  lines.push(`User question: ${input.question}`);
 
   if (input.intent) {
     lines.push(`Intent: ${input.intent}`);

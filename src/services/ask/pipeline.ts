@@ -39,7 +39,7 @@ export type AskPipelineDeps = {
   ) => Promise<QueryUnderstandingResult>;
   searchKnowledge?: (
     searchQuery: unknown,
-    options?: SearchKnowledgeOptions,
+    options?: SearchKnowledgeOptions & { userId?: string },
   ) => Promise<KnowledgeSearchResult>;
   buildContext?: (input: {
     results?: unknown;
@@ -52,11 +52,23 @@ export type AskPipelineDeps = {
       contextText?: unknown;
       intent?: unknown;
       searchQuery?: unknown;
+      conversationHistory?: unknown;
     },
     options?: { client?: Anthropic; model?: string; apiKey?: string },
   ) => Promise<AnswerGenerationResult>;
-  getCachedAsk?: (question: string) => Promise<CachedAskPayload | null>;
-  setCachedAsk?: (question: string, result: CachedAskPayload) => Promise<void>;
+  getCachedAsk?: (
+    question: string,
+    userId?: string | null,
+  ) => Promise<CachedAskPayload | null>;
+  setCachedAsk?: (
+    question: string,
+    result: CachedAskPayload,
+    userId?: string | null,
+  ) => Promise<void>;
+  /** Scope retrieval + cache to this user. */
+  userId?: string;
+  /** Prior turns in the current thread (memory layer). */
+  conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
 function shouldSkipLogs(): boolean {
@@ -118,24 +130,30 @@ export async function askQuestion(
   const runSearchKnowledge = deps.searchKnowledge ?? searchHybrid;
   const runBuildContext = deps.buildContext ?? buildContext;
   const runGenerateAnswer = deps.generateAnswer ?? generateAnswer;
+  const userId = deps.userId;
+  const conversationHistory = deps.conversationHistory ?? [];
+  const hasMemory = conversationHistory.length > 0;
 
   try {
-    const cached = await runGetCachedAsk(question);
-    if (cached) {
-      const result: AskPipelineResult = { ...cached, cached: true };
-      logAskEvent("success", {
-        latencyMs: Date.now() - startedAt,
-        resultCount: cached.resultCount,
-        cached: true,
-      });
-      return result;
+    // Skip single-turn cache when this is a multi-turn thread follow-up.
+    if (!hasMemory) {
+      const cached = await runGetCachedAsk(question, userId);
+      if (cached) {
+        const result: AskPipelineResult = { ...cached, cached: true };
+        logAskEvent("success", {
+          latencyMs: Date.now() - startedAt,
+          resultCount: cached.resultCount,
+          cached: true,
+        });
+        return result;
+      }
     }
 
     stage = "haiku";
     const { intent, searchQuery } = await runProcessQuestion(question);
 
     stage = "search";
-    const search = await runSearchKnowledge(searchQuery);
+    const search = await runSearchKnowledge(searchQuery, { userId });
 
     stage = "context";
     const context = runBuildContext({
@@ -150,6 +168,7 @@ export async function askQuestion(
       contextText: context.contextText,
       intent,
       searchQuery,
+      conversationHistory,
     });
 
     const payload: CachedAskPayload = {
@@ -167,7 +186,9 @@ export async function askQuestion(
     };
 
     stage = "cache-store";
-    await runSetCachedAsk(question, payload);
+    if (!hasMemory) {
+      await runSetCachedAsk(question, payload, userId);
+    }
 
     const result: AskPipelineResult = { ...payload, cached: false };
 

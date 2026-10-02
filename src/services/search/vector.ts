@@ -17,6 +17,8 @@ export type SearchChunksOptions = {
   db?: Db;
   /** Precomputed query embedding (skips embedText). */
   queryEmbedding?: number[];
+  /** Restrict results to this user's documents. */
+  userId?: string;
 };
 
 type ChunkRow = {
@@ -64,6 +66,11 @@ export async function searchDocumentChunks(
       INNER JOIN documents d ON d.id = c.document_id
       WHERE d.status = 'ready'
         AND c.embedding IS NOT NULL
+        ${
+          options.userId
+            ? sql`AND d.user_id = ${options.userId}`
+            : sql``
+        }
       ORDER BY c.embedding <=> ${vectorSql}
       LIMIT ${limit}
     `);
@@ -127,6 +134,7 @@ export async function searchHybrid(
     limit: resultLimit,
     db: options.db,
     queryEmbedding: options.queryEmbedding,
+    userId: options.userId,
   }).catch((error) => {
     // If no OPENAI key / no chunks yet, fall back to empty vector results.
     console.warn("[search-hybrid] vector search skipped:", error);
@@ -136,6 +144,16 @@ export async function searchHybrid(
       results: [] as KnowledgeSearchHit[],
     };
   });
+
+  // When scoped to a user, only search their uploaded docs (skip shared FAQ FTS).
+  if (options.userId) {
+    const vector = await vectorPromise;
+    return {
+      searchQuery: query,
+      count: vector.results.length,
+      results: vector.results.slice(0, resultLimit),
+    };
+  }
 
   const { searchKnowledge } = await import("@/services/search/postgres");
   const runFts = options.searchKnowledge ?? searchKnowledge;

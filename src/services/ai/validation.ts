@@ -50,11 +50,13 @@ export function validateAnswerGenerationInput(input: {
   contextText?: unknown;
   intent?: unknown;
   searchQuery?: unknown;
+  conversationHistory?: unknown;
 }): {
   question: string;
   contextText: string;
   intent: string | null;
   searchQuery: string | null;
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>;
 } {
   const question = validateQuestionInput(input.question);
 
@@ -107,7 +109,39 @@ export function validateAnswerGenerationInput(input: {
     searchQuery = input.searchQuery.trim() || null;
   }
 
-  return { question, contextText, intent, searchQuery };
+  const conversationHistory: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }> = [];
+  if (input.conversationHistory !== undefined && input.conversationHistory !== null) {
+    if (!Array.isArray(input.conversationHistory)) {
+      throw new AppError(
+        "INVALID_INPUT",
+        "conversationHistory must be an array when provided.",
+        400,
+      );
+    }
+    for (const item of input.conversationHistory) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      const role = (item as { role?: unknown }).role;
+      const rawContent = (item as { content?: unknown }).content;
+      if (
+        (role !== "user" && role !== "assistant") ||
+        typeof rawContent !== "string"
+      ) {
+        continue;
+      }
+      const content = rawContent.trim();
+      if (!content) {
+        continue;
+      }
+      conversationHistory.push({ role, content });
+    }
+  }
+
+  return { question, contextText, intent, searchQuery, conversationHistory };
 }
 
 /**

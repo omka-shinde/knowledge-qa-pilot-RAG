@@ -109,8 +109,8 @@ export async function processDocument(documentId: string): Promise<void> {
       error: null,
     });
 
-    // Document corpus changed — drop stale ask answers.
-    await clearAskCache();
+    // Document corpus changed — drop stale ask answers for this user.
+    await clearAskCache(doc.userId ?? undefined);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Document processing failed.";

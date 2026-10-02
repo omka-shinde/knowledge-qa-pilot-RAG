@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { AuthError, requireSessionUser } from "@/lib/auth";
 import {
   createDocumentFromUpload,
   getAllowedExtensions,
@@ -10,17 +11,21 @@ import {
 export const runtime = "nodejs";
 
 /**
- * GET /api/documents — list uploaded documents + processing status.
+ * GET /api/documents — list current user's documents + processing status.
  */
 export async function GET() {
   try {
-    const documents = await listDocuments();
+    const user = await requireSessionUser();
+    const documents = await listDocuments(user.id);
     return Response.json({
       documents,
       allowedExtensions: getAllowedExtensions(),
       maxFileBytes: getMaxUploadBytes(),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     const message =
       error instanceof Error ? error.message : "Failed to list documents.";
     return Response.json({ error: message }, { status: 500 });
@@ -28,11 +33,11 @@ export async function GET() {
 }
 
 /**
- * POST /api/documents — upload a document (multipart form field: file).
- * Processing (extract → chunk → embed) runs in the background via `after()`.
+ * POST /api/documents — upload a document for the current user.
  */
 export async function POST(request: Request) {
   try {
+    const user = await requireSessionUser();
     const form = await request.formData();
     const file = form.get("file");
 
@@ -45,6 +50,7 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const { document } = await createDocumentFromUpload({
+      userId: user.id,
       filename: file.name,
       mimeType: file.type || "application/octet-stream",
       buffer,
@@ -56,6 +62,9 @@ export async function POST(request: Request) {
 
     return Response.json({ document }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     const message =
       error instanceof Error ? error.message : "Upload failed.";
     const status = /unsupported|too large|empty|required/i.test(message)

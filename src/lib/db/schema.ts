@@ -88,8 +88,32 @@ export type KnowledgeEntry = typeof knowledgeEntries.$inferSelect;
 export type NewKnowledgeEntry = typeof knowledgeEntries.$inferInsert;
 
 /**
+ * Application users (email/password auth).
+ * Passwords are stored as bcrypt hashes — never plaintext.
+ */
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("users_email_uidx").on(table.email)],
+);
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+/**
  * Cached end-to-end ask responses.
- * Keyed by normalized question so repeated asks skip Haiku + search + Sonnet.
+ * Keyed by user + normalized question so repeated asks skip Haiku + search + Sonnet.
  */
 export type AskCacheSource = {
   id: string;
@@ -102,6 +126,7 @@ export const askCache = pgTable(
   "ask_cache",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     questionNormalized: text("question_normalized").notNull(),
     question: text("question").notNull(),
     answer: text("answer").notNull(),
@@ -120,7 +145,8 @@ export const askCache = pgTable(
     lastHitAt: timestamp("last_hit_at", { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex("ask_cache_question_normalized_uidx").on(
+    uniqueIndex("ask_cache_user_question_normalized_uidx").on(
+      table.userId,
       table.questionNormalized,
     ),
   ],
@@ -142,6 +168,7 @@ export const documents = pgTable(
   "documents",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     filename: text("filename").notNull(),
     mimeType: text("mime_type").notNull(),
     fileSize: integer("file_size").notNull(),
@@ -160,6 +187,7 @@ export const documents = pgTable(
   (table) => [
     index("documents_status_idx").on(table.status),
     index("documents_created_at_idx").on(table.createdAt),
+    index("documents_user_id_idx").on(table.userId),
   ],
 );
 
@@ -196,3 +224,63 @@ export const documentChunks = pgTable(
 
 export type DocumentChunk = typeof documentChunks.$inferSelect;
 export type NewDocumentChunk = typeof documentChunks.$inferInsert;
+
+/**
+ * Chat threads (ChatGPT-style) — one conversation per user thread.
+ */
+export const chatThreads = pgTable(
+  "chat_threads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("New chat"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("chat_threads_user_id_idx").on(table.userId),
+    index("chat_threads_updated_at_idx").on(table.updatedAt),
+  ],
+);
+
+export type ChatThread = typeof chatThreads.$inferSelect;
+export type NewChatThread = typeof chatThreads.$inferInsert;
+
+export type ChatMessageRole = "user" | "assistant";
+
+export type ChatMessageSource = {
+  id: string;
+  question: string;
+  sourceDocument: string;
+  sourcePage: number | null;
+};
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    role: text("role").$type<ChatMessageRole>().notNull(),
+    content: text("content").notNull(),
+    sources: jsonb("sources").$type<ChatMessageSource[] | null>(),
+    cached: integer("cached").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("chat_messages_thread_id_idx").on(table.threadId),
+    index("chat_messages_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export type ChatMessageRow = typeof chatMessages.$inferSelect;
+export type NewChatMessageRow = typeof chatMessages.$inferInsert;

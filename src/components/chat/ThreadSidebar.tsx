@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 type ThreadListItem = {
   id: string;
   title: string;
@@ -10,8 +12,8 @@ type ThreadSidebarProps = {
   threads: ThreadListItem[];
   activeThreadId: string | null;
   loading?: boolean;
-  onSelect: (threadId: string) => void;
-  onNewChat: () => void;
+  threadHref: (threadId: string) => string;
+  newChatHref: string;
   onDelete: (threadId: string) => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
@@ -33,8 +35,8 @@ export function ThreadSidebar({
   threads,
   activeThreadId,
   loading,
-  onSelect,
-  onNewChat,
+  threadHref,
+  newChatHref,
   onDelete,
   collapsed,
   onToggleCollapsed,
@@ -52,16 +54,15 @@ export function ThreadSidebar({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h10" />
           </svg>
         </button>
-        <button
-          type="button"
-          onClick={onNewChat}
+        <Link
+          href={newChatHref}
           title="New chat"
           className="mx-2 rounded-lg bg-zinc-900 p-2 text-white dark:bg-zinc-100 dark:text-zinc-900"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-        </button>
+        </Link>
       </aside>
     );
   }
@@ -69,16 +70,15 @@ export function ThreadSidebar({
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60">
       <div className="flex items-center gap-2 border-b border-zinc-200 p-3 dark:border-zinc-800">
-        <button
-          type="button"
-          onClick={onNewChat}
+        <Link
+          href={newChatHref}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           New chat
-        </button>
+        </Link>
         <button
           type="button"
           onClick={onToggleCollapsed}
@@ -104,11 +104,10 @@ export function ThreadSidebar({
               const active = thread.id === activeThreadId;
               return (
                 <li key={thread.id} className="group relative">
-                  <button
-                    type="button"
-                    onClick={() => onSelect(thread.id)}
+                  <Link
+                    href={threadHref(thread.id)}
                     className={[
-                      "w-full rounded-lg px-2.5 py-2 text-left transition",
+                      "block w-full rounded-lg px-2.5 py-2 text-left transition",
                       active
                         ? "bg-white shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700"
                         : "hover:bg-white/80 dark:hover:bg-zinc-900/80",
@@ -120,7 +119,7 @@ export function ThreadSidebar({
                     <span className="mt-0.5 block text-[10px] text-zinc-500">
                       {formatUpdatedAt(thread.updatedAt)}
                     </span>
-                  </button>
+                  </Link>
                   <button
                     type="button"
                     title="Delete chat"

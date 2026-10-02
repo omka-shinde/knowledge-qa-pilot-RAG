@@ -177,6 +177,8 @@ export const documents = pgTable(
     statusMessage: text("status_message"),
     error: text("error"),
     chunkCount: integer("chunk_count").notNull().default(0),
+    /** Questions drawn from this document for the empty-chat suggestions. Null until generated. */
+    suggestedQuestions: jsonb("suggested_questions").$type<string[] | null>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

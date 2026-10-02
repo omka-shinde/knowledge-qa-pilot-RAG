@@ -13,6 +13,10 @@ export {
 } from "@/services/documents/extract";
 export { processDocument } from "@/services/documents/processor";
 export {
+  extractQuestionsFromText,
+  getSuggestionsForUser,
+} from "@/services/documents/suggestions";
+export {
   createDocumentFromUpload,
   deleteDocument,
   getAllowedExtensions,

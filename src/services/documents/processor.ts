@@ -14,6 +14,7 @@ import {
 import { chunkText } from "@/services/documents/chunker";
 import { embedTexts } from "@/services/documents/embeddings";
 import { extractTextFromFile } from "@/services/documents/extract";
+import { generateAndStoreSuggestions } from "@/services/documents/suggestions";
 import { clearAskCache } from "@/services/ask/cache";
 
 async function setStatus(
@@ -102,6 +103,12 @@ export async function processDocument(documentId: string): Promise<void> {
         embedding: embeddings[i]!,
       })),
     );
+
+    try {
+      await generateAndStoreSuggestions(documentId);
+    } catch (error) {
+      console.warn("[suggestions]", error);
+    }
 
     await setStatus(documentId, "ready", {
       statusMessage: `Ready — ${chunks.length} chunks indexed`,

@@ -22,6 +22,16 @@ function getAuthSecret(): Uint8Array {
   );
 }
 
+/** Send the visitor back to the same path, including ?thread=, after login. */
+function loginRedirect(request: NextRequest): URL {
+  const login = new URL("/login", request.url);
+  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  if (nextPath !== "/") {
+    login.searchParams.set("next", nextPath);
+  }
+  return login;
+}
+
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return true;
@@ -61,9 +71,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
-    const login = new URL("/login", request.url);
-    login.searchParams.set("next", pathname);
-    return NextResponse.redirect(login);
+    return NextResponse.redirect(loginRedirect(request));
   }
 
   try {
@@ -73,8 +81,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
-    const login = new URL("/login", request.url);
-    const response = NextResponse.redirect(login);
+    const response = NextResponse.redirect(loginRedirect(request));
     response.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
     return response;
   }

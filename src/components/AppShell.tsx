@@ -20,22 +20,47 @@ type ThreadListItem = {
   updatedAt: string;
 };
 
+function chatHref(
+  threadId: string | null,
+  view: "chat" | "documents" = "chat",
+): string {
+  const params = new URLSearchParams();
+  if (view === "documents") {
+    params.set("view", "documents");
+  }
+  if (threadId) {
+    params.set("thread", threadId);
+  }
+  const query = params.toString();
+  return query ? `/?${query}` : "/";
+}
+
 function AppShellInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialView =
-    searchParams.get("view") === "documents" ? "documents" : "chat";
-  const [view, setView] = useState<"chat" | "documents">(initialView);
+  const rawThread = searchParams.get("thread")?.trim() ?? "";
+  const activeThreadId = rawThread || null;
+  const view = searchParams.get("view") === "documents" ? "documents" : "chat";
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [threads, setThreads] = useState<ThreadListItem[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  useEffect(() => {
-    setView(searchParams.get("view") === "documents" ? "documents" : "chat");
-  }, [searchParams]);
+  const goTo = useCallback(
+    (href: string, method: "push" | "replace") => {
+      const current = `${window.location.pathname}${window.location.search}`;
+      if (current === href) {
+        return;
+      }
+      if (method === "push") {
+        router.push(href);
+      } else {
+        router.replace(href);
+      }
+    },
+    [router],
+  );
 
   const refreshThreads = useCallback(async () => {
     setThreadsLoading(true);
@@ -100,7 +125,7 @@ function AppShellInner() {
         return;
       }
       if (activeThreadId === threadId) {
-        setActiveThreadId(null);
+        goTo(chatHref(null, view), "replace");
       }
       await refreshThreads();
     } catch {
@@ -121,12 +146,10 @@ function AppShellInner() {
       <ChatHeader
         activeView={view}
         onOpenDocuments={() => {
-          setView("documents");
-          router.replace("/?view=documents");
+          goTo(chatHref(activeThreadId, "documents"), "push");
         }}
         onOpenChat={() => {
-          setView("chat");
-          router.replace("/");
+          goTo(chatHref(activeThreadId, "chat"), "push");
         }}
         userName={user?.name}
         userEmail={user?.email}
@@ -139,18 +162,18 @@ function AppShellInner() {
             loading={threadsLoading}
             collapsed={sidebarCollapsed}
             onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
-            onSelect={(id) => setActiveThreadId(id)}
-            onNewChat={() => setActiveThreadId(null)}
+            threadHref={(id) => chatHref(id, "chat")}
+            newChatHref={chatHref(null, "chat")}
             onDelete={(id) => void handleDeleteThread(id)}
           />
           <ChatPanel
             threadId={activeThreadId}
             onThreadChange={(thread) => {
-              if (!thread) {
-                setActiveThreadId(null);
+              const nextId = thread?.id ?? null;
+              if (nextId === activeThreadId) {
                 return;
               }
-              setActiveThreadId(thread.id);
+              goTo(chatHref(nextId, "chat"), "replace");
             }}
             onThreadsRefresh={() => void refreshThreads()}
           />
@@ -158,8 +181,7 @@ function AppShellInner() {
       ) : (
         <DocumentsPanel
           onBack={() => {
-            setView("chat");
-            router.replace("/");
+            goTo(chatHref(activeThreadId, "chat"), "push");
           }}
         />
       )}
